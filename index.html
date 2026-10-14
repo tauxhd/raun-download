@@ -4,10 +4,39 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Download Raun</title>
-<meta http-equiv="refresh" content="0; url=https://github.com/tauxhd/raun-download/releases/latest/download/raun.apk">
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#14120f;color:#fff;font:16px system-ui,sans-serif;text-align:center;padding:16px}a{color:#fcd116}</style>
+<style>
+  :root { --ink: #14120f; --gold: #fcd116; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+    background: var(--ink); color: #fff; font: 16px/1.5 system-ui, sans-serif; text-align: center; padding: 24px 16px; }
+  img { width: 96px; }
+  h1 { margin: 0; font-size: 40px; letter-spacing: -1px; }
+  h1 span { color: var(--gold); }
+  p { margin: 0; color: #ffffffa3; max-width: 340px; }
+  .btn { display: block; width: 100%; max-width: 340px; padding: 16px; border-radius: 12px; background: var(--gold); color: var(--ink);
+    font-weight: 700; font-size: 18px; text-decoration: none; }
+  .btn.alt { background: #ffffff14; color: #fff; }
+  .hide { display: none; }
+  small { color: #ffffff61; max-width: 340px; }
+</style>
 </head>
 <body>
-<p>Downloading Raun…<br>If it doesn’t start, <a href="https://github.com/tauxhd/raun-download/releases/latest/download/raun.apk">tap here</a>.</p>
+  <img src="mask.png" alt="Raun">
+  <h1>raun<span>.</span></h1>
+  <p>Rides across Papua New Guinea · Android prototype</p>
+  <a class="btn" id="dl" href="raun.apk" download="raun.apk" type="application/vnd.android.package-archive">Download for Android</a>
+  <a class="btn alt hide" id="chrome" href="intent://tauxhd.github.io/raun-download/#Intent;scheme=https;package=com.android.chrome;end">Open in Chrome to download</a>
+  <p id="tip">Then open <b>raun.apk</b> and tap Install. If asked, allow your browser to install apps.</p>
+  <small id="size"></small>
+<script>
+  // in-app browsers (Facebook, Messenger, Instagram, WhatsApp, TikTok) often can't download files: send people to Chrome
+  const inApp = /FBAN|FBAV|FB_IAB|Instagram|Messenger|WhatsApp|Line\/|TikTok|; wv\)/i.test(navigator.userAgent);
+  if (inApp && /Android/i.test(navigator.userAgent)) {
+    document.getElementById('chrome').classList.remove('hide');
+    document.getElementById('tip').textContent = 'This app’s built-in browser can’t download files. Open the page in Chrome first.';
+  } else {
+    setTimeout(() => location.href = 'raun.apk', 600);   // start the download straight away
+  }
+</script>
 </body>
 </html>

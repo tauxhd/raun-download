@@ -4,7 +4,7 @@ Ride-hailing for Papua New Guinea. This repo only hosts the Android test build.
 
 ## Install on Android
 
-1. Open the [latest release](../../releases/latest) on your phone and tap **raun.apk** to download it.
+1. On your phone, open **https://tauxhd.github.io/raun-download/** (in Chrome). The download starts by itself.
 2. Open the downloaded file. If Android asks, allow your browser to **install unknown apps**.
 3. Tap **Install**, then open **Raun**.
 
