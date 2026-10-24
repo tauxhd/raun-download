@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14120f">
+<meta name="robots" content="noindex">
+<title>Live trip · Raun</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root { --ink: #14120f; --ink2: rgba(20,18,15,.64); --paper: #fff; --fill: #f3f1ea; --gold: #fcd116; --ochre: #e9aa32; --red: #ce1126; --green: #1f8a4c; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: var(--ink); background: var(--fill); }
+  #map { position: fixed; inset: 0 0 auto 0; height: 58vh; background: #eceee7; }
+  header { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 16px; z-index: 1000; display: flex; align-items: center; gap: 8px;
+    background: var(--ink); color: #fff; padding: 6px 12px 6px 6px; border-radius: 999px; font-weight: 700; box-shadow: 0 4px 14px #0004; }
+  header img { width: 26px; height: 29px; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; top: calc(58vh - 24px); background: var(--paper); border-radius: 24px 24px 0 0;
+    padding: 20px 20px max(20px, env(safe-area-inset-bottom)); overflow: auto; box-shadow: 0 -6px 24px #0002; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink2); }
+  h1 { font-size: 24px; line-height: 1.2; margin: 4px 0 2px; }
+  .muted { color: var(--ink2); }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .car { margin-top: 16px; background: var(--fill); border-radius: 20px; padding: 14px 16px; }
+  .plate { font: 700 15px ui-monospace, monospace; letter-spacing: 2px; background: var(--gold); padding: 4px 10px; border-radius: 6px; }
+  .route { margin-top: 14px; display: grid; gap: 6px; font-size: 15px; }
+  .route b { display: inline-block; width: 64px; color: var(--ink2); font-weight: 600; }
+  .help { margin-top: 18px; display: flex; gap: 8px; }
+  .help a { flex: 1; text-align: center; text-decoration: none; padding: 14px; border-radius: 14px; font-weight: 700; }
+  .police { background: var(--red); color: #fff; }
+  .amb { background: var(--fill); color: var(--ink); }
+  .live { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink2); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: beat 1.6s ease-in-out infinite; }
+  .dot.stale { background: var(--ochre); animation: none; }
+  @keyframes beat { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+  .pin { width: 14px; height: 14px; border-radius: 50%; background: var(--ink); border: 4px solid #fff; box-shadow: 0 2px 8px #0004; }
+  .pin.sq { border-radius: 3px; }
+  .puck { width: 28px; height: 28px; border-radius: 50%; background: var(--ink); border: 3px solid #fff; box-shadow: 0 4px 10px #0005; display: grid; place-items: center; }
+  .ended h1 { color: var(--green); }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<header><img src="logo.png" alt="">Raun</header>
+<main class="sheet" id="sheet" aria-live="polite">
+  <p class="eyebrow">Live trip</p>
+  <h1 id="title">Loading the trip…</h1>
+  <p class="muted" id="sub"></p>
+</main>
+<script>
+const URL_ = 'https://atdpentbmtwzascpnkqc.supabase.co', KEY = 'sb_publishable_SoSB36saLXsmTwli1ggC4g_0Pb4AqPh';
+const token = new URLSearchParams(location.search).get('t');
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const map = L.map('map', { zoomControl: false }).setView([-9.4438, 147.1803], 13);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+const icon = (cls, html = '') => L.divIcon({ className: '', html: `<div class="${cls}">${html}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
+const arrow = h => `<svg width="14" height="14" viewBox="0 0 24 24" style="transform:rotate(${h || 0}deg)"><path fill="#fcd116" d="M12 2 19 21 12 17 5 21z"/></svg>`;
+let pick, drop, car, fitted = false, timer;
+const km = (a, b, c, d) => { const r = x => x * Math.PI / 180, h = Math.sin(r(c - a) / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(r(d - b) / 2) ** 2; return 12742 * Math.asin(Math.sqrt(h)); };
+const mins = k => Math.max(1, Math.round(k * 1.3 / 25 * 60));
+const ago = iso => { const s = Math.round((Date.now() - new Date(iso)) / 1000); return s < 60 ? `${s}s ago` : `${Math.round(s / 60)} min ago`; };
+
+async function load() {
+  if (!token) return show('This link isn’t complete', 'Ask for the trip link again.');
+  let t;
+  try {
+    const r = await fetch(`${URL_}/rest/v1/rpc/shared_trip`, { method: 'POST', headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_token: token }) });
+    t = (await r.json())[0];
+  } catch { return; }   // keep the last view on a network blip; the next poll tries again
+  if (!t) { clearInterval(timer); return show('This trip has ended', 'Live sharing stops 30 minutes after the trip.'); }
+  draw(t);
+}
+function show(title, sub) { $('title').textContent = title; $('sub').textContent = sub; }
+
+function draw(t) {
+  const who = esc(t.rider_first), d = esc(t.driver_first) || 'The driver';
+  const P = [t.pickup_lat, t.pickup_lng], D = [t.dropoff_lat, t.dropoff_lng];
+  pick ? pick.setLatLng(P) : pick = L.marker(P, { icon: icon('pin') }).addTo(map);
+  drop ? drop.setLatLng(D) : drop = L.marker(D, { icon: icon('pin sq') }).addTo(map);
+  if (t.car_lat != null) {
+    const C = [t.car_lat, t.car_lng];
+    car ? (car.setLatLng(C), car.setIcon(icon('puck', arrow(t.heading)))) : car = L.marker(C, { icon: icon('puck', arrow(t.heading)), zIndexOffset: 500 }).addTo(map);
+  } else if (car) { car.remove(); car = null; }
+  const pts = [t.status === 'in_progress' ? null : P, D, car && car.getLatLng()].filter(Boolean);
+  if (!fitted || t.status === 'in_progress') { map.fitBounds(pts, { padding: [50, 50], maxZoom: 16 }); fitted = true; }
+
+  const toPick = t.car_lat != null ? mins(km(t.car_lat, t.car_lng, t.pickup_lat, t.pickup_lng)) : null;
+  const toDrop = t.car_lat != null ? mins(km(t.car_lat, t.car_lng, t.dropoff_lat, t.dropoff_lng)) : null;
+  const headline = {
+    requested: [`Finding ${who} a driver`, 'Usually takes a minute or two'],
+    accepted: [`${d} is on the way to ${who}`, toPick ? `About ${toPick} min to the pickup` : ''],
+    arrived: [`${d} is at the pickup`, `Waiting for ${who}`],
+    in_progress: [`${who} is on the way`, toDrop ? `Arriving in about ${toDrop} min` : ''],
+    completed: [`${who} arrived safely`, `at ${new Date(t.completed_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`],
+  }[t.status] || ['Trip update', ''];
+  const stale = t.located_at && Date.now() - new Date(t.located_at) > 60000;
+  $('sheet').className = 'sheet' + (t.status === 'completed' ? ' ended' : '');
+  $('sheet').innerHTML = `
+    <p class="eyebrow">Live trip${t.car_lat != null ? ` · <span class="live"><span class="dot${stale ? ' stale' : ''}"></span>updated ${ago(t.located_at)}</span>` : ''}</p>
+    <h1>${headline[0]}</h1><p class="muted">${headline[1]}</p>
+    ${t.plate ? `<div class="car row"><div style="flex:1"><b>${d}</b><div class="muted">${esc(t.car_model)}</div></div><span class="plate">${esc(t.plate)}</span></div>` : ''}
+    <div class="route"><div><b>From</b>${esc(t.pickup_name)}</div><div><b>To</b>${esc(t.dropoff_name)}</div></div>
+    ${t.status === 'completed' ? '' : `<div class="help"><a class="police" href="tel:112">Police 112</a><a class="amb" href="tel:111">Ambulance 111</a></div>
+    <p class="muted" style="font-size:13px;margin-top:12px">Worried? Call ${who} first, then the police. This page updates by itself.</p>`}`;
+  if (t.status === 'completed') clearInterval(timer);
+}
+addEventListener('resize', () => map.invalidateSize());
+load(); timer = setInterval(load, 5000);
+</script>
+</body>
+</html>
